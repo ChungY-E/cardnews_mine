@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>PDF 논문 · 보고서 쉬운 해설 & 카드뉴스</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body{font-family:Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif; background:radial-gradient(ellipse at 10% 0%,#e0e7ff 0%,transparent 45%),radial-gradient(ellipse at 90% 18%,#dbeafe 0%,transparent 40%),#f8faff; min-height:100vh;color:#1e293b}
+    .glass-card{background:rgba(255,255,255,.95);box-shadow:0 18px 54px rgba(58,69,122,.08);border:1px solid #e9ebf7}
+    .drop-zone{transition:background-color .2s,border-color .2s,transform .2s}
+    .drop-zone:hover,.drop-zone.dragging,.drop-zone:focus-within{background-color:#eef2ff;border-color:#6366f1;transform:translateY(-1px)}
+    .result-card{box-shadow:0 12px 36px rgba(67,76,120,.07)}
+    .spinner{height:24px;width:24px;border-radius:9999px;border:3px solid #c7d2fe;border-top-color:#4f46e5;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #toast{transition:opacity .2s,transform .2s}
+    #toast.toast-hidden{opacity:0;transform:translateY(10px);pointer-events:none}
+    [hidden]{display:none!important}
+  </style>
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <main class="mx-auto max-w-5xl px-4 sm:px-6 py-12 sm:py-16">
+    <header class="text-center mb-10 sm:mb-12">
+      <div class="inline-flex items-center rounded-full border border-indigo-100 bg-white/80 px-4 py-2 text-indigo-600 text-xs font-bold mb-5 shadow-sm">GEMINI POWERED · PDF TO CONTENT</div>
+      <h1 class="text-3xl sm:text-4xl lg:text-5xl leading-tight tracking-tight font-extrabold text-slate-900">📄 PDF 논문 · 보고서<br class="sm:hidden"> 쉬운 해설 & 카드뉴스</h1>
+      <p class="mt-5 text-slate-500 text-sm sm:text-base leading-relaxed">PDF 파일을 업로드하면 Gemini가 분석해 초등학생 해설과 카드뉴스를 만들어 드립니다!</p>
+    </header>
+
+    <section class="glass-card rounded-3xl p-5 sm:p-9" aria-label="PDF 파일 업로드">
+      <h2 class="text-lg font-extrabold text-slate-800 mb-5">PDF 파일 업로드</h2>
+      <div id="dropZone" class="drop-zone relative rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 px-5 py-12 text-center cursor-pointer" role="button" tabindex="0" aria-label="PDF 파일 선택 또는 드래그 앤 드롭">
+        <input id="fileInput" type="file" accept=".pdf,application/pdf" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" aria-label="PDF 업로드">
+        <div aria-hidden="true" class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-3xl">📤</div>
+        <p class="text-slate-800 font-bold text-base">여기를 클릭하거나 PDF 파일을 드래그하여 업로드하세요</p>
+        <p class="text-slate-400 text-sm mt-2">지원 형식: .pdf (최대 4MB)</p>
+      </div>
+
+      <div id="accessCodeWrap" class="mt-6" hidden>
+        <label for="accessCode" class="block text-sm text-slate-700 font-bold mb-2">접속 코드</label>
+        <input id="accessCode" type="password" autocomplete="off" placeholder="관리자에게 받은 접속 코드를 입력하세요" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:ring-4 focus:ring-indigo-100 focus:border-indigo-400">
+      </div>
+
+      <div id="selectedFile" class="mt-5 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3" hidden>
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>
+        <span id="fileName" class="break-all font-semibold text-emerald-900 text-sm"></span>
+      </div>
+      <button id="analyzeButton" type="button" disabled class="mt-6 w-full rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-5 py-4 font-extrabold text-white shadow-lg shadow-indigo-200 transition enabled:hover:-translate-y-0.5 enabled:hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed">✨ PDF 분석 & 카드뉴스 생성하기</button>
+      <p class="mt-4 text-xs text-slate-400 text-center">파일은 결과 생성에 필요한 동안 분석 API로만 전송됩니다. 최대 4MB</p>
+    </section>
+
+    <div id="loading" class="mt-7 glass-card rounded-2xl p-5 flex items-center gap-4 text-indigo-700 font-semibold" role="status" aria-live="polite" hidden>
+      <span class="spinner shrink-0" aria-hidden="true"></span><span>PDF 파일을 읽고 Gemini가 분석 중입니다...</span>
+    </div>
+    <div id="errorBox" class="mt-7 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700" role="alert" hidden></div>
+
+    <section id="results" class="mt-12" aria-label="분석 결과" hidden>
+      <div class="flex flex-wrap gap-4 items-center justify-between mb-6">
+        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">🎯 분석 결과</h2>
+        <button id="copyButton" type="button" class="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-50">📋 전체 결과 복사하기</button>
+      </div>
+
+      <div class="space-y-5">
+        <article class="result-card rounded-2xl border border-slate-100 border-l-[6px] border-l-amber-400 bg-white p-5 sm:p-7">
+          <h3 class="text-lg font-extrabold text-slate-900 mb-4">👧 초등학생도 이해하는 쉬운 말 해설</h3>
+          <p id="easyExplanation" class="text-slate-700 whitespace-pre-line break-words text-sm sm:text-base leading-8"></p>
+        </article>
+
+        <article class="result-card rounded-2xl border border-slate-100 border-l-[6px] border-l-emerald-400 bg-white p-5 sm:p-7">
+          <h3 class="text-lg font-extrabold text-slate-900 mb-5">📌 핵심 테이크어웨이 (3줄 요약)</h3>
+          <div id="takeaways" class="space-y-3"></div>
+        </article>
+
+        <article class="result-card rounded-2xl border border-slate-100 border-l-[6px] border-l-indigo-500 bg-white p-5 sm:p-7">
+          <h3 class="text-lg font-extrabold text-slate-900 mb-5">📱 SNS 카드뉴스용 텍스트 (슬라이드 1 ~ 4)</h3>
+          <div id="cardNews" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <div id="toast" class="toast-hidden fixed bottom-5 right-5 left-5 sm:left-auto sm:max-w-md rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-2xl z-50" role="status" aria-live="polite"></div>
+</body>
+</html>
